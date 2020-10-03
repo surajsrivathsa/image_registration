@@ -7,13 +7,14 @@ import nibabel as nb
 import numpy as np
 import nibabel.processing as nbp
 import img_processing as ipr
-sys.path.insert(0, '/Users/surajshashidhar/git/airlab')
+import dl_airlabs_constants as const
+sys.path.insert(0, const.FILEPATH_AIRLABS_LIB)
 import airlab as al
 
 class ImageRegistrationUtils:
     def __init__(self, preprocessed_stationary_img_tnsr, preprocessed_moving_img_tnsr, preprocessed_stationary_img_voxel_dim,
     preprocessed_moving_img_voxel_dim, preprocessed_stationary_img_centre, preprocessed_moving_img_centre,
-    img_shape, device, loss_fnc = "MSE",  logging_flag=False, log = None):
+    img_shape, device, loss_fnc = const.LOSS_FNC, logging_flag=const.LOGGING_FLAG, log = None):
         self.preprocessed_stationary_img_tnsr = preprocessed_stationary_img_tnsr
         self.preprocessed_moving_img_tnsr = preprocessed_moving_img_tnsr
         self.preprocessed_stationary_img_voxel_dim = preprocessed_stationary_img_voxel_dim
@@ -30,7 +31,7 @@ class ImageRegistrationUtils:
         self.log = log
 
         if(self.logging_flag):
-            logging.basicConfig(filename= "", level = "", filemode="", format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
+            logging.basicConfig(filename= const.FILE_PATH_LOG, level = const.LOGGING_LEVEL, filemode=const.FILE_MODE, format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
             self.log = logging.getLogger()
             self.log.info("Logging has been enabled")
             print("Logging has been enabled")

@@ -3,14 +3,18 @@ import sys
 import nibabel as nb
 import numpy as np
 import torch
-sys.path.insert(0, '/Users/surajshashidhar/git/airlab')
+import dl_airlabs_constants as const
+sys.path.insert(0, const.FILEPATH_AIRLABS_LIB)
 import airlab as al
+
+
+#"/Users/surajshashidhar/git/image_registration/warped_image.nii.gz"
 
 class ImageprocessingUtils:
     
-    def __init__(self, stationary_image_file_path, moving_image_file_path, output_warped_image_file_path="/Users/surajshashidhar/git/image_registration/warped_image.nii.gz",
-    reorient_flag=True, resample_flag=True, resampling_type="both_moving_and_stationary",  resampling_size=[1, 1, 1],
-    padding_flag=True, logging_flag=False, log = None):
+    def __init__(self, stationary_image_file_path, moving_image_file_path,
+    output_warped_image_file_path, reorient_flag, resample_flag, resampling_type,  resampling_size,
+    padding_flag, logging_flag, log = None):
 
         self.stationary_image_file_path = stationary_image_file_path
         self.moving_image_file_path = moving_image_file_path
@@ -39,7 +43,7 @@ class ImageprocessingUtils:
         self.affine_transformation_object = None
 
         if(self.logging_flag):
-            logging.basicConfig(filename= "", level = "", filemode="", format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
+            logging.basicConfig(filename= const.FILE_PATH_LOG, level = const.LOGGING_LEVEL, filemode=const.FILE_MODE, format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
             self.log = logging.getLogger()
             self.log.info("Logging has been enabled")
             print("Logging has been enabled")
