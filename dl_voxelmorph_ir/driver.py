@@ -1,162 +1,148 @@
 import os, sys
+import time
 import numpy as np
 import tensorflow as tf
+import logging
 assert tf.__version__.startswith('2.'), 'This tutorial assumes Tensorflow 2.0+'
 print("Tensorflow version: {}".format(tf.__version__))
-import voxelmorph as vxm
+
 import neurite as ne
 import nibabel as nb
+import argparse
 import nibabel.processing as nbp
+import dl_voxelmorph_constants as const
+sys.path.insert(0, const.FILEPATH_VOXELMORPH_LIB)
+import voxelmorph as vxm
+import img_processing as ipr
+import img_registration as ireg
 
-vol_shape = (224, 320, 320)
-nb_features = [
-    [16, 32, 32, 32],
-    [32, 32, 32, 32, 32, 16, 16]]
-
-vxm_model = vxm.networks.VxmDense(vol_shape, nb_features, int_steps=2);
-
-vxm_model.load_weights('/Users/surajshashidhar/git/image_registration/brain_3d.h5')
-t1_fn= "/Users/surajshashidhar/git/image_registration/T1_images/IXI002-Guys-0828-T1.nii.gz"
-t2_fn= "/Users/surajshashidhar/git/image_registration/T1_images/IXI030-Guys-0708-T1.nii.gz"
-
-def preprocess_nifti_images( t1_fn, t2_fn, resampling_size = [1,1,1]):
-   # read from T1 and T2 paths
-        orig_nii_t1 = nb.load(t1_fn)
-        orig_nii_t2 = nb.load(t2_fn)
-
-        #print(orig_nii_t1.header)
-        #print(orig_nii_t2.header)
-
-        print(orig_nii_t1.header["pixdim"])
-        print(orig_nii_t2.header["pixdim"])
-        print(orig_nii_t1.header["qoffset_x"])
-        print(orig_nii_t1.header["qoffset_y"])
-        print(orig_nii_t1.header["qoffset_z"])
-        print(orig_nii_t2.header["qoffset_x"])
-        print(orig_nii_t2.header["qoffset_y"])
-        print(orig_nii_t2.header["qoffset_z"])
-
-        orig_nii_t1_voxel_dim = orig_nii_t1.header["pixdim"][1:4]
-        orig_nii_t2_voxel_dim = orig_nii_t2.header["pixdim"][1:4]
-        orig_nii_t1_centre = [float(orig_nii_t1.header["qoffset_x"]), float(orig_nii_t1.header["qoffset_y"]), float(orig_nii_t1.header["qoffset_z"])]
-        orig_nii_t2_centre = [float(orig_nii_t2.header["qoffset_x"]), float(orig_nii_t2.header["qoffset_y"]), float(orig_nii_t2.header["qoffset_z"])]
+#vol_shape = (224, 320, 320)
 
 
-        print(" ============= ============== ===================")
-        print("Image 1 voxel resolution before resampling: {}".format(orig_nii_t1_voxel_dim))
-        print(" ============= ============== ===================")
-        print("Image 2 voxel resolution before resampling: {}".format(orig_nii_t2_voxel_dim))
-        print(" ============= ============== ===================")
-        print("Image 1 centre before resampling: {}".format(orig_nii_t1_centre))
-        print(" ============= ============== ===================")
-        print("Image 2 centre before resampling: {}".format(orig_nii_t2_centre))
-        
+class Driver:
+    def __init__(self, stationary_img_path, moving_img_path, output_warped_image_path,
+                loss_fnc, resampling_dim, logging_flag, padding_flag, reorient_flag, 
+                resample_flag, resampling_type, model_path,
+                gpu_flag, warp_file_path, multichannel):
+        self.stationary_img_path = stationary_img_path
+        self.moving_img_path = moving_img_path
+        self.output_warped_image_path = output_warped_image_path
+        self.loss_fnc = loss_fnc
+        self.resampling_size = resampling_size
+        self.logging_flag = logging_flag
+        self.padding_flag = padding_flag
+        self.reorient_flag = reorient_flag
+        self.resample_flag = resample_flag
+        self.resampling_type = resampling_type
+        self.model_path = model_path
+        self.warp_file_path = warp_file_path
+        self.multichannel = multichannel
+        self.device = None
+        self.gpu_flag = gpu_flag
+        self.nb_features = [ [16, 32, 32, 32], [32, 32, 32, 32, 32, 16, 16] ]
+        self.deformation_level = 1
+        if(self.logging_flag):
+            logging.basicConfig(filename= const.FILE_PATH_LOG, level = const.LOGGING_LEVEL, filemode=const.FILE_MODE, format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
+            self.log = logging.getLogger()
+            self.log.info("Logging has been enabled")
+            print("Logging has been enabled")
+            print()
+        else:
+            print("Logging has been disabled")
+            self.log = None
+            print()
 
-        print("original t1 affine: {}".format(orig_nii_t1.affine))
-        print(" ============= ============== ===================")
-        print("original t2 affine: {}".format(orig_nii_t2.affine))
-        print(" ============= ============== ===================")
-        print("original t1 Orientation: {}".format(nb.aff2axcodes(orig_nii_t1.affine)))
-        print(" ============= ============== ===================")
-        print("original t2 Orientation: {}".format(nb.aff2axcodes(orig_nii_t2.affine)))
+    def start_process(self):
 
-        canonical_img_1 = nb.as_closest_canonical(orig_nii_t1)
-        print(" ============= ============== ===================")
-        print("orientation changed  t1 affine: {}".format(canonical_img_1.affine))
-        print(" ============= ============== ===================")
-        print("orientation changed  t1 : {}".format(nb.aff2axcodes(canonical_img_1.affine)))
-        print(" ============= ============== ===================")
-        canonical_img_2 = nb.as_closest_canonical(orig_nii_t2)
-        print(" ============= ============== ===================")
-        print("orientation changed  t2 affine: {}".format(canonical_img_2.affine))
-        print(" ============= ============== ===================")
-        print("orientation changed  t1 : {}".format(nb.aff2axcodes(canonical_img_2.affine)))
+        stationary_image_file_path = self.stationary_img_path
+        moving_image_file_path = self.moving_img_path
+        output_warped_image_file_path = self.output_warped_image_path
+        warp_file_path = self.warp_file_path
 
-        resampled_voxel_size = resampling_size
-        canonical_img_1 = nb.processing.resample_to_output(canonical_img_1,voxel_sizes=resampled_voxel_size)
-        canonical_img_2 = nb.processing.resample_to_output(canonical_img_2,voxel_sizes=resampled_voxel_size)
+        print()
+        print(" ============= preprocessing started ===================")
+        img_prcs_obj = ipr.ImageprocessingUtils(stationary_image_file_path=self.stationary_img_path, moving_image_file_path=self.moving_img_path, \
+        output_warped_image_file_path = self.output_warped_image_path, reorient_flag=self.reorient_flag, resample_flag=self.resample_flag, \
+        resampling_type=self.resampling_type,  resampling_size=self.resampling_size, padding_flag=self.padding_flag, logging_flag=self.logging_flag)
 
-        print(" ============= ============== ===================")
-        print("Shape of resampled 1 image: {}".format(canonical_img_1.header.get_data_shape()))
-        print(" ============= ============== ===================")
-        print("resampled t1 affine: {}".format(canonical_img_1.affine))
-        print(" ============= ============== ===================")
-        print("Shape of resampled 1 image: {}".format(canonical_img_2.header.get_data_shape()))
-        print(" ============= ============== ===================")       
-        print("resampled 2 affine: {}".format(canonical_img_2.affine))
-        print(" ============= ============== ===================")
+        orig_nii_stationary, orig_nii_moving = img_prcs_obj.read_input_images();
+        canonical_img_1, canonical_img_2 = img_prcs_obj.reorient_images();
+        resampled_stationary_img, resampled_moving_img = img_prcs_obj.resample_image();
+        preprocessed_stationary_img, preprocessed_moving_img, img_shape, interim_img_1_path, interim_img_2_path = img_prcs_obj.pad_nifti_img()
 
-        ci1_shape = canonical_img_1.header.get_data_shape()
-        ci2_shape = canonical_img_2.header.get_data_shape()
-        max_shapes = (max(ci1_shape[0], ci2_shape[0]), max(ci1_shape[1], ci2_shape[1]), max(ci1_shape[2], ci2_shape[2]))
-        max_shapes_array = [max(ci1_shape[0], ci2_shape[0]), max(ci1_shape[1], ci2_shape[1]), max(ci1_shape[2], ci2_shape[2])]
-        
-        canonical_img_1_voxel_dim = canonical_img_1.header["pixdim"][1:4]
-        canonical_img_2_voxel_dim = canonical_img_1.header["pixdim"][1:4]
-        canonical_img_1_centre = [float(canonical_img_1.header["qoffset_x"]), float(canonical_img_1.header["qoffset_y"]), float(canonical_img_1.header["qoffset_z"])]
-        canonical_img_2_centre = [float(canonical_img_2.header["qoffset_x"]), float(canonical_img_2.header["qoffset_y"]), float(canonical_img_2.header["qoffset_z"])]
-
-        print(" ============= ============== ===================")
-        print("Image 1 voxel resolution after resampling: {}".format(canonical_img_1_voxel_dim))
-        print(" ============= ============== ===================")
-        print("Image 2 voxel resolution after resampling: {}".format(canonical_img_2_voxel_dim))
-        print(" ============= ============== ===================")
-        print("Image 1 centre after resampling: {}".format(canonical_img_1_centre))
-        print(" ============= ============== ===================")
-        print("Image 2 centre after resampling: {}".format(canonical_img_2_centre))
-               
-        #t1_img_np = np.array(canonical_img_1.dataobj)
-        #t2_img_np = np.array(canonical_img_2.dataobj)
-
-        #t1_img_np = np.zeros((256, 288, 288))
-        #t2_img_np = np.zeros((256, 288, 288))
-
-        t1_img_np = np.zeros((224, 320, 320))
-        t2_img_np = np.zeros((224, 320, 320))
-
-        t1_img_np[:ci1_shape[0], :ci1_shape[1], :ci1_shape[2]] = canonical_img_1.dataobj
-        t2_img_np[:ci2_shape[0], :ci2_shape[1], :ci2_shape[2]] = canonical_img_2.dataobj
-
-        print(" ============= ============== ===================")
-        print("Max intensity of T1: {}".format(np.max(t1_img_np)))
-        print(" ============= ============== ===================")
-        print("Max intensity of T2: {}".format(np.max(t2_img_np)))
-
-        t1_img_np = t1_img_np/(np.max(t1_img_np) * 1.0)
-        t2_img_np = t2_img_np/(np.max(t2_img_np) * 1.0)
-
-        print(" ============= ============== ===================")
-        print("Padded numpy array stationary image shape: {}".format(t1_img_np.shape))
-        print(" ============= ============== ===================")
-        print("Padded numpy array moving image shape: {}".format(t2_img_np.shape))
-        print(" ============= ============== ===================")
+        print()
+        print(" ============= preprocessing completed ===================")
+        print()
+        print(" ============= starting registration ===================")
+        img_regs_obj = ireg.ImageRegistrationUtils(interim_img_1_path, interim_img_2_path, self.model_path, self.gpu_flag, 
+                                                   self.output_warped_image_path, self.warp_file_path, self.multichannel, img_shape, 
+                                                   self.nb_features, self.deformation_level, self.logging_flag)
+        img_regs_obj.register_and_save_warped_image();
+        print(" ============= registration ended===================")
+        print("")
+        print(" ============= warped image saved to path ===================")
 
 
-        return t1_img_np, t2_img_np, canonical_img_1_voxel_dim, canonical_img_2_voxel_dim, canonical_img_1_centre, canonical_img_2_centre, max_shapes_array;
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+
+    # Add the arguments to the parser and parse the arguments from command line
+    ap.add_argument( "--stationary_img_path", nargs= "?", required=False, help=" stationary_img_path", default = const.FILE_PATH_STATIONARY_IMG)
+    ap.add_argument("--moving_img_path", nargs= "?", required=False, help="moving_img_path", default = const.FILE_PATH_MOVING_IMG)
+    ap.add_argument("--output_warped_image_path", nargs= "?", required=False, help=" output_warped_image_path", default=const.FILE_PATH_WARPED_IMG)
+    ap.add_argument("--loss_fnc", nargs= "?", required=False, help="loss_fnc", default = const.LOSS_FNC)
+    ap.add_argument("--resampling_size", nargs= "?", required=False, help="resampling_dim", default = const.RESAMPLING_SIZE)
+    ap.add_argument("--logging_flag", nargs= "?", required=False, help="logging_flag", default = "False")
+    ap.add_argument("--padding_flag", nargs= "?", required=False, help="padding_flag", default = "True")
+    ap.add_argument("--reorient_flag", nargs= "?", required=False, help="reorient_flag", default = "True")
+    ap.add_argument("--resample_flag", nargs= "?", required=False, help="resample_flag", default = "True")
+    ap.add_argument("--resampling_type", nargs= "?", required=False, help="resampling_type", default = const.RESAMPLING_TYPE)
+    ap.add_argument("--model_path", nargs= "?", required=False, help="model_path", default = const.MODEL_PATH)
+    ap.add_argument("--warp_file_path", nargs= "?", required=False, help="deformation_field_file", default = const.WARP_FILE_PATH)
+    ap.add_argument("--gpu", nargs= "?", required=False, help="gpu", default = const.GPU)
+    ap.add_argument("--multichannel", nargs= "?", required=False, help="multichannel", default = const.MULTICHANNEL)
+    args = vars(ap.parse_args())
+
+    stationary_img_path = args["stationary_img_path"]
+    moving_img_path = args["moving_img_path"]
+    output_warped_image_path = args["output_warped_image_path"]
+    loss_fnc = args["loss_fnc"]
+    resampling_size = args["resampling_size"]
+    resampling_type = args["resampling_type"]
+    model_path = args['model_path']
+    warp_file_path = args['warp_file_path']
+    gpu = args['gpu']
+    multichannel = args['multichannel']
 
 
-t1_img_np, t2_img_np, canonical_img_1_voxel_dim, canonical_img_2_voxel_dim, canonical_img_1_centre, canonical_img_2_centre, img_shape = preprocess_nifti_images(t1_fn=t1_fn, t2_fn=t2_fn);
-val_volume_1 = t1_img_np
-val_volume_2 = t2_img_np
-val_input = [
-    val_volume_1[np.newaxis, ..., np.newaxis],
-    val_volume_2[np.newaxis, ..., np.newaxis]
-]
+    padding_flag = args["padding_flag"]
+    if(padding_flag == "True"):
+        padding_flag = True
+    else:
+        padding_flag = False
 
-val_pred = vxm_model.predict(val_input);
-moved_pred = val_pred[0].squeeze()
-pred_warp = val_pred[1]
+    reorient_flag = args["reorient_flag"]
+    if(reorient_flag == "True"):
+        reorient_flag = True
+    else:
+        reorient_flag = False
 
-mid_slices_fixed = [np.take(val_volume_2, vol_shape[d]//2, axis=d) for d in range(3)]
-mid_slices_fixed[1] = np.rot90(mid_slices_fixed[1], 1)
-mid_slices_fixed[2] = np.rot90(mid_slices_fixed[2], -1)
+    resample_flag = args["resample_flag"]
+    if(resample_flag == "True"):
+        resample_flag = True
+    else:
+        resample_flag = False
 
-mid_slices_moving = [np.take(val_volume_1, vol_shape[d]//2, axis=d) for d in range(3)]
-mid_slices_moving[1] = np.rot90(mid_slices_moving[1], 1)
-mid_slices_moving[2] = np.rot90(mid_slices_moving[2], -1)
+    logging_flag = args["logging_flag"]
+    if(logging_flag == "True"):
+        logging_flag = True
+    else:
+        logging_flag = False
+    
+    start_time = time.time()
 
-mid_slices_pred = [np.take(moved_pred, vol_shape[d]//2, axis=d) for d in range(3)]
-mid_slices_pred[1] = np.rot90(mid_slices_pred[1], 1)
-mid_slices_pred[2] = np.rot90(mid_slices_pred[2], -1)
-
-ne.plot.slices(mid_slices_fixed + mid_slices_moving + mid_slices_pred, cmaps=['gray'], do_colorbars=True, grid=[3, 3]);
+    driver_obj = Driver(stationary_img_path, moving_img_path, output_warped_image_path, loss_fnc, resampling_size, 
+                        logging_flag, padding_flag, reorient_flag, resample_flag, resampling_type,
+                        model_path=model_path,warp_file_path=warp_file_path,gpu_flag=gpu, multichannel=multichannel)
+    driver_obj.start_process()
+    print("--- %s seconds ---" % (time.time() - start_time))
