@@ -71,7 +71,7 @@ class Driver:
         print(" ============= preprocessing completed ===================")
         print()
         print(" ============= starting registration ===================")
-        img_regs_obj = ireg.ImageRegistrationUtils(preprocessed_stationary_img_tnsr, preprocessed_moving_img_tnsr, preprocessed_stationary_img_voxel_dim, preprocessed_moving_img_voxel_dim, preprocessed_stationary_img_centre, preprocessed_moving_img_centre, img_shape, device)
+        img_regs_obj = ireg.ImageRegistrationUtils(preprocessed_stationary_img_tnsr, preprocessed_moving_img_tnsr, preprocessed_stationary_img_voxel_dim, preprocessed_moving_img_voxel_dim, preprocessed_stationary_img_centre, preprocessed_moving_img_centre, img_shape, device, loss_fnc)
         warped_img_tnsr, transformation, displacement = img_regs_obj.three_dim_affine_reg();
         print(" ============= registration ended===================")
         print()

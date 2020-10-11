@@ -110,8 +110,8 @@ class ImageprocessingUtils:
             print(" ============= ============== ===================")
             print("Not reorienting the images as reorient flag is false")
             print(" ============= ============== ===================")
-            self.canonical_img_1 = orig_nii_stationary
-            self.canonical_img_2 = orig_nii_moving
+            self.canonical_img_1 = self.orig_nii_stationary
+            self.canonical_img_2 = self.orig_nii_moving
             return self.canonical_img_1, self.canonical_img_2;
 
 
@@ -262,10 +262,10 @@ class ImageprocessingUtils:
                 return self.resampled_stationary_img, self.resampled_moving_img;
         
         else:
-            canonical_img_1_voxel_dim = canonical_img_1.header["pixdim"][1:4]
-            canonical_img_2_voxel_dim = canonical_img_1.header["pixdim"][1:4]
-            canonical_img_1_centre = [float(canonical_img_1.header["qoffset_x"]), float(canonical_img_1.header["qoffset_y"]), float(canonical_img_1.header["qoffset_z"])]
-            canonical_img_2_centre = [float(canonical_img_2.header["qoffset_x"]), float(canonical_img_2.header["qoffset_y"]), float(canonical_img_2.header["qoffset_z"])]
+            canonical_img_1_voxel_dim = self.canonical_img_1.header["pixdim"][1:4]
+            canonical_img_2_voxel_dim = self.canonical_img_1.header["pixdim"][1:4]
+            canonical_img_1_centre = [float(self.canonical_img_1.header["qoffset_x"]), float(self.canonical_img_1.header["qoffset_y"]), float(self.canonical_img_1.header["qoffset_z"])]
+            canonical_img_2_centre = [float(self.canonical_img_2.header["qoffset_x"]), float(self.canonical_img_2.header["qoffset_y"]), float(self.canonical_img_2.header["qoffset_z"])]
 
             print("Returning older images as you have choosen not to resample")
             self.resampled_stationary_img = self.canonical_img_1
@@ -288,6 +288,9 @@ class ImageprocessingUtils:
       
             stationary_img_np = np.array(self.resampled_stationary_img.dataobj)
             moving_img_np = np.array(self.resampled_moving_img.dataobj)
+
+            stationary_img_np = stationary_img_np * 1.0/np.max(stationary_img_np)
+            moving_img_np = moving_img_np * 1.0/np.max(moving_img_np)
 
             stationary_img_tnsr = torch.from_numpy(stationary_img_np)        
             moving_img_tnsr = torch.from_numpy(moving_img_np)  

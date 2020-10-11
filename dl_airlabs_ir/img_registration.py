@@ -108,7 +108,7 @@ class ImageRegistrationUtils:
         optimizer = torch.optim.Adam(transformation.parameters(), lr=0.1)
 
         registration.set_optimizer(optimizer)
-        registration.set_number_of_iterations(3)
+        registration.set_number_of_iterations(const.ITERATIONS)
 
         # start the registration
         registration.start()
@@ -133,7 +133,7 @@ class ImageRegistrationUtils:
         print(" ============= ============== ===================")
 
         # plot the results - commented out as it pops open a window
-        """
+        
         plt.subplot(131)
         plt.imshow(fixed_image.numpy()[90, :, :], cmap='gray')
         plt.title('Fixed Image Slice')
@@ -146,7 +146,7 @@ class ImageRegistrationUtils:
         plt.imshow(warped_image.numpy()[16, :, :], cmap='gray')
         plt.title('Warped Moving Image Slice')   
         plt.show()
-        """
+        
 
         self.affine_transformation_matrix = transformation.transformation_matrix
         self.affine_transformation_object = transformation
