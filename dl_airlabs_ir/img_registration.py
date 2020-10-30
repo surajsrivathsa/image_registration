@@ -29,6 +29,8 @@ class ImageRegistrationUtils:
         self.displacement = None
         self.logging_flag = logging_flag
         self.log = log
+        self.sigma = sigma = [11, 11, 11]
+        self.reg_type = "affine"
 
         if(self.logging_flag):
             logging.basicConfig(filename= const.FILE_PATH_LOG, level = const.LOGGING_LEVEL, filemode=const.FILE_MODE, format='%(asctime)s - s%(name)s - %(levelname)s - %(message)s')
@@ -83,7 +85,11 @@ class ImageRegistrationUtils:
         # choose the affine transformation model
         print("Using Affine transformation")
         print(" ============= ============== ===================")
-        transformation = al.transformation.pairwise.AffineTransformation(moving_image, opt_cm=True)
+
+        if(self.reg_type == "affine"):
+            transformation = al.transformation.pairwise.AffineTransformation(moving_image, opt_cm=True)
+        else:
+            transformation = al.transformation.pairwise.BsplineTransformation(image_size=moving_image.size, sigma=self.sigma, diffeomorphic=True, order=3, dtype=torch.float32, device='cpu')
         transformation.init_translation(fixed_image)
         registration.set_transformation(transformation)
 

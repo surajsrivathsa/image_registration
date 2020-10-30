@@ -145,10 +145,11 @@ class InferenceDriver:
         inference_in_sample, inference_out_sample = next(inference_generator)
 
         # visualize
-        images = [img[0, :, 64, :, 0] for img in inference_in_sample + inference_out_sample]
-        titles = ['moving', 'fixed', 'moved ground-truth (fixed)', 'zeros']
+        #images = [img[0, :, 64, :, 0] for img in inference_in_sample + inference_out_sample]
+        #titles = ['moving', 'fixed', 'moved ground-truth (fixed)', 'zeros']
         # ne.plot.slices(images, titles=titles, cmaps=['gray'], do_colorbars=True);
         self.loadModel()
+        self.inferImages(inference_in_sample)
 
 
 if __name__ == "__main__":
@@ -156,6 +157,6 @@ if __name__ == "__main__":
     moving_folder_path = "/Users/surajshashidhar/git/image_registration_data/t2_test"
     warped_folder_path = "/Users/surajshashidhar/git/image_registration_data/warped_images"
     model_path = "/Users/surajshashidhar/git/image_registration_data/bkp_trained_model/t2_mv_t1_fix_registration_weights/t2_mv_t1_fix_registration_weights.index"
-    inference_obj = InferenceDriver(fixed_folder_path, moving_folder_path)
+    inference_obj = InferenceDriver(fixed_folder_path, moving_folder_path, warped_folder_path)
     inference_obj.runInference()
 
