@@ -1,4 +1,4 @@
-
+import os
 import tensorflow as tf
 import voxelmorph as vxm
 
@@ -6,7 +6,9 @@ class Model:
 
     def __init__(self, train_generator, epochs=2, steps_per_epoch=1, verbose=2, vol_shape = (256, 256, 256), 
                 model_save_path = "/project/shashidh/voxelmorph_models", 
-                model_weights_save_path = "/project/shashidh/voxelmorph_model_weight" ):
+                model_weights_save_path = "/project/shashidh/voxelmorph_model_weight",
+                similarity_loss_type = vxm.losses.NCC().loss, similarity_loss_weight = 1,
+                regularizer_loss_type = vxm.losses.Grad("l2").loss, regularizer_loss_weight = 1 ):
         self.nb_features = [[32, 32, 32, 32, 32], [32, 32, 32, 32, 32, 32, 16]]
         self.vol_shape = vol_shape
         self.int_steps = 3
@@ -18,6 +20,11 @@ class Model:
         self.hist = None
         self.model_save_path = model_save_path
         self.model_weights_save_path = model_weights_save_path
+        self.similarity_loss_type = similarity_loss_type
+        self.regularizer_loss_type = regularizer_loss_type
+        self.similarity_loss_weight = similarity_loss_weight
+        self.regularizer_loss_weight = regularizer_loss_weight
+        self.save_filename = os.path.join(model_save_path, '{epoch:04d}.h5')
 
 
     def buildModel(self):
@@ -25,8 +32,8 @@ class Model:
         vxm_model = vxm.networks.VxmDense(self.vol_shape, self.nb_features, int_steps=self.int_steps)
         
         # losses and loss weights
-        losses = [vxm.losses.NCC().loss, vxm.losses.Grad('l2').loss]
-        loss_weights = [1, 1]
+        losses = [self.similarity_loss_type, self.regularizer_loss_type]
+        loss_weights = [self.similarity_loss_weight, self.regularizer_loss_weight]
 
         vxm_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4), loss=losses, loss_weights=loss_weights)
         self.vxm_model = vxm_model
@@ -38,11 +45,14 @@ class Model:
 
 
     def trainModel(self):
-        hist = self.vxm_model.fit_generator(self.train_generator, epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, verbose=self.verbose);
+        save_callback = tf.keras.callbacks.ModelCheckpoint(self.save_filename)
+        hist = self.vxm_model.fit_generator(self.train_generator, epochs=self.epochs, steps_per_epoch=self.steps_per_epoch, callbacks=[save_callback], verbose=self.verbose);
         self.hist = None
 
 
     def saveModelandWeights(self):
+        os.mkdir(self.model_weights_save_path)
         self.vxm_model.save(self.model_save_path)
         self.vxm_model.save_weights(self.model_weights_save_path)
+
 

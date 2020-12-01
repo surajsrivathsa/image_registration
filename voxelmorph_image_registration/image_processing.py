@@ -10,7 +10,7 @@ import voxelmorph as vxm
 class ImageProcessing:
 
 
-    def __init__(self, fixed_image_folder, moving_image_folder, img_dim = (256, 256, 256), training_batch_size=4 ):
+    def __init__(self, fixed_image_folder, moving_image_folder, img_dim = (256, 256, 256), training_batch_size=3 ):
         self.fixed_image_folder = fixed_image_folder
         self.moving_image_folder = moving_image_folder
         self.moving_file_list = None
@@ -29,6 +29,18 @@ class ImageProcessing:
         self.moving_file_list = moving_file_list
         self.fixed_file_list = fixed_file_list
         return;
+
+
+    def readImagesfromListnew(self):
+        self.fixed_data_np = np.zeros(shape=(len(self.fixed_file_list), self.resamplng_shape[0] , self.resamplng_shape[1] , self.resamplng_shape[2] ))
+        self.moving_data_np = np.zeros(shape=(len(self.moving_file_list),  self.resamplng_shape[0] , self.resamplng_shape[1] , self.resamplng_shape[2]))
+        ind = 0
+        for fixed_img, moving_img in zip(self.fixed_file_list, self.moving_file_list):
+            fixed_np = self.load_3D(fixed_img)
+            moving_np = self.load_3D(moving_img)
+            self.fixed_data_np[ind,:,:,:] = fixed_np
+            self.moving_data_np[ind,:,:,:] = moving_np
+            ind = ind + 1
 
 
     def readImagesfromList(self):
@@ -78,7 +90,6 @@ class ImageProcessing:
 
         # preliminary sizing
         vol_shape = self.fixed_data_np.shape[1:] # extract data shape
-        print("Volume shape: {}".format(vol_shape))
         ndims = len(vol_shape)
         
         # prepare a zero array the size of the deformation
@@ -101,6 +112,16 @@ class ImageProcessing:
             outputs = [fixed_images, zero_phi]
             
             yield (inputs, outputs)
+
+
+    def load_3D(self, name):
+    	model_np = np.zeros(shape=self.resamplng_shape)
+    	X_nb = nb.load(name)
+    	X_np = X_nb.dataobj
+    	# print("Oreintation: {}".format(nb.aff2axcodes(X_nb.affine)))
+    	model_np[0:X_np.shape[0], 0:X_np.shape[1], 0:X_np.shape[2]] = X_np[:, :, :]
+    	# model_np = np.reshape(model_np, (1,)+ model_np.shape)
+    	return model_np
 
 
     def generateDataset(self, batch_size):
