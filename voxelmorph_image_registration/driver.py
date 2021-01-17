@@ -13,6 +13,7 @@ import re
 import glob
 import image_processing as ipr
 import model
+import shutil
 
 
 print("Tensorflow version: {}".format(tf.__version__))
@@ -42,6 +43,10 @@ else:
 fixed_folder = "/project/shashidh/Voxel_morph_dataset"
 moving_folder = "/project/shashidh/Voxel_morph_dataset"
 model_save_path = "/project/shashidh/t1_mv_t1_fix_registration_model"
+
+if (os.path.exists(model_save_path)):
+  shutil.rmtree(model_save_path)
+
 os.mkdir(model_save_path)
 model_weights_save_path = "/project/shashidh/t1_mv_t1_fix_registration_weights"
 num_bins = 10
@@ -58,17 +63,17 @@ print()
 similarity_loss_type = vxm.losses.NCC().loss
 similarity_loss_weight = 1
 regularizer_loss_type = vxm.losses.Grad("l2").loss
-regularizer_loss_weight = 0.2
+regularizer_loss_weight = 0.1
 epochs = 100
-batch_size = 3
-steps_per_epoch = 50//3
+batch_size = 10
+steps_per_epoch = 50//batch_size
 vol_shape = (128, 128, 128)
 
 print("Epochs, Batchsize, steps per epoch and volume shape are {}, {}, {} and {}".format(epochs, batch_size, steps_per_epoch, vol_shape))
 
 print("")
 print(" ======== Starting preprocessing ==========")
-ipr_obj = ipr.ImageProcessing(fixed_folder, moving_folder)
+ipr_obj = ipr.ImageProcessing(fixed_folder, moving_folder, resampling_shape = vol_shape)
 ipr_obj.getListofImages()
 ipr_obj.readImagesfromListnew()
 generator = ipr_obj.generateDataset(batch_size=batch_size)
@@ -84,7 +89,12 @@ with tf.device(device_name):
 
     print("")
     print(" ======== Starting model building and training ==========")
-    model_obj = model.Model(generator, epochs=epochs, steps_per_epoch=steps_per_epoch, vol_shape=vol_shape, model_save_path=model_save_path, model_weights_save_path=model_weights_save_path, similarity_loss_type=similarity_loss_type, similarity_loss_weight= similarity_loss_weight, regularizer_loss_type = regularizer_loss_type, regularizer_loss_weight = regularizer_loss_weight )
+    model_obj = model.Model(generator, epochs=epochs, steps_per_epoch=steps_per_epoch, 
+                            vol_shape=vol_shape, model_save_path=model_save_path, 
+                            model_weights_save_path=model_weights_save_path, 
+                            similarity_loss_type=similarity_loss_type, similarity_loss_weight= similarity_loss_weight, 
+                            regularizer_loss_type = regularizer_loss_type, regularizer_loss_weight = regularizer_loss_weight,
+                            use_pretrained_model=False)
     model_obj.buildModel()
     model_obj.printModelSummary()
     model_obj.trainModel()
